@@ -52,33 +52,33 @@ async def read_root():
     return {"message": "Welcome to the Speech-to-Text API"}
 
 @app.post("/upload")
-async def upload_file(audio: UploadFile = File(...), transcript: str = Form(...)):
+async def upload_audio(audio_file: UploadFile = File(...), sentence: str = Form(...)):
     try:
-        # Convert uploaded audio to WAV format if it's not already in WAV
-        if audio.filename.endswith('.wav'):
-            wav_filename = audio.filename
-        else:
-            wav_filename = convert_to_wav(audio.file, audio.filename)
+        # Generate a unique file name
+        unique_id = str(uuid.uuid4())
+        original_filename = audio_file.filename
+        unique_filename = f"{unique_id}_{original_filename}"
 
-        blob_name = f"{uuid.uuid4()}.wav"
-        blob_client = container_client.get_blob_client(blob_name)
+        # Create a BlobServiceClient object
+        blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
 
-        with open(wav_filename, "rb") as audio_file:
-            audio_data = audio_file.read()
-            blob_client.upload_blob(audio_data, blob_type="BlockBlob")
+        # Create a BlobClient object
+        blob_client = blob_service_client.get_blob_client(container=BLOB_CONTAINER_NAME, blob=unique_filename)
 
-        audio_url = blob_client.url
+        # Upload the audio file to Azure storage
+        blob_client.upload_blob(audio_file.file, overwrite=True)
 
-        document = {
-            "audioUrl": audio_url,
-            "transcript": transcript
-        }
+        # Get the URL of the uploaded blob
+        blob_url = blob_client.url
 
-        await collection.insert_one(document)
+        # Insert the audio URL and sentence into the database
+        record = {"url": blob_url, "sentence": sentence}
+        collection.insert_one(record)
 
-        return JSONResponse(status_code=200, content={"audioUrl": audio_url, "transcript": transcript})
+        return JSONResponse(content={"message": "Audio uploaded successfully!", "url": blob_url}, status_code=200)
+
     except Exception as e:
-        return JSONResponse(status_code=500, content={"message": str(e)})
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 if __name__ == "__main__":
     import uvicorn
