@@ -72,7 +72,7 @@ async def upload_audio(audio_file: UploadFile = File(...), sentence: str = Form(
         blob_url = blob_client.url
 
         # Insert the audio URL and sentence into the database
-        record = {"url": blob_url, "sentence": sentence}
+        record = {"audio": blob_url, "transcription": sentence}
         collection.insert_one(record)
 
         return JSONResponse(content={"message": "Audio uploaded successfully!", "url": blob_url}, status_code=200)
